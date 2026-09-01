@@ -33,7 +33,7 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
 
     private static final String TAG = "MainActivity";
     private static final String RSS_URL = "https://e00-xlk-ue-marca.uecdn.es/rss/googlenews/portada.xml";
-    private static final String RSS_PAGE_URL = "https://e00-xlk-ue-marca.uecdn.es/rss/googlenews/portada.xml";
+    private static final String RSS_PAGE_URL = "https://e00-xlk-ue-marca.uecdn.es/rss/googlenews/portada.xml?page=";
     private static final int LOAD_MORE_THRESHOLD = 4;
     private static final int MAX_CONSECUTIVE_DUPLICATE_PAGES = 2;
 
@@ -393,7 +393,7 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
 
             // Una actualización completa reinicia el recorrido del archivo.
             nextArchivePage = 2;
-            hasMoreNews = false;
+            hasMoreNews = true;
             isLoadingMore = false;
             consecutiveDuplicatePages = 0;
 
