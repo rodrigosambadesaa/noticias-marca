@@ -407,7 +407,7 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
     private void ejecutarDiagnosticoRedCompleto() {
         final AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle("Diagnóstico de Conectividad")
-                .setMessage("Ejecutando comprobación avanzada de red y sondeo activo DNS/HTTP...")
+                .setMessage("Ejecutando comprobación avanzada de red y sondeo multi-capa...")
                 .setPositiveButton("Cerrar", null)
                 .show();
 
@@ -437,7 +437,7 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
                     sb.append("• Red VPN Activa: ").append(isVpn ? "SÍ" : "No").append("\n");
                     sb.append("• Modo Avión: ").append(isAirplane ? "ACTIVADO" : "Desactivado").append("\n\n");
 
-                    sb.append("🔍 PRUEBA ACTIVA DNS/HTTP (GIST):\n");
+                    sb.append("🔍 PRUEBA ACTIVA MULTI-CAPA (GIST):\n");
                     sb.append("• Internet Real: ").append(reachable ? "SÍ (Internet Verificado)" : "NO (Sin Internet)").append("\n");
                     sb.append("• Servidor alcanzado: ").append(reachedHost).append("\n");
                     sb.append("• Latencia de respuesta: ").append(time).append(" ms\n");
