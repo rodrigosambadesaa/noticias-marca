@@ -62,9 +62,10 @@ public class AsignaImagenDeURL extends AsyncTask<String,Void,Void> {
 					if (mapaDeBits != null) return null;
 				}
 
-				if (contexto != null && !ConnectivityAndInternetAccess.isConnectedOrConnecting(contexto)) {
-					return null;
-				}
+                // Cheap guard only; the image request itself remains the definitive test.
+                if (contexto != null && !ConnectivityAndInternetAccess.isConnected(contexto)) {
+                    return null;
+                }
 
 				String finalImageUrl = currentUrl;
 				boolean isWebPage = currentUrl.contains(".html") || currentUrl.contains(".php") || !isDirectImageUrl(currentUrl);

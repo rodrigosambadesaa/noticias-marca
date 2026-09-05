@@ -8,6 +8,7 @@
 package com.example.muyinteresante.util;
 
 import android.content.BroadcastReceiver;
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -60,6 +61,7 @@ import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 
 @SuppressWarnings("deprecation")
+@SuppressLint("NewApi")
 public final class ConnectivityAndInternetAccess {
 
     public interface DnsProbeStrategy {
@@ -758,7 +760,7 @@ public final class ConnectivityAndInternetAccess {
                 ConnectionAttempt attempt = CONNECTION_ATTEMPT_QUEUE.removeFirst();
                 if (!attempt.closed) {
                     attempt.closed = true;
-                    CONNECTION_ATTEMPTS.updateAndGet(value -> value > 0 ? value - 1 : 0);
+                    decrementNonNegative(CONNECTION_ATTEMPTS);
                     return;
                 }
             }
@@ -2376,6 +2378,16 @@ public final class ConnectivityAndInternetAccess {
         });
     }
 
+    private static void decrementNonNegative(AtomicInteger counter) {
+        int current;
+        do {
+            current = counter.get();
+            if (current <= 0) {
+                return;
+            }
+        } while (!counter.compareAndSet(current, current - 1));
+    }
+
     private static boolean timeoutConnectionAttempt(ConnectionAttempt attempt) {
         synchronized (CONNECTION_ATTEMPT_LOCK) {
             if (attempt.closed) {
@@ -2384,7 +2396,7 @@ public final class ConnectivityAndInternetAccess {
 
             attempt.closed = true;
             CONNECTION_ATTEMPT_QUEUE.remove(attempt);
-            CONNECTION_ATTEMPTS.updateAndGet(value -> value > 0 ? value - 1 : 0);
+            decrementNonNegative(CONNECTION_ATTEMPTS);
             CONNECTION_ATTEMPT_STALLED.set(true);
             return true;
         }
@@ -2409,7 +2421,7 @@ public final class ConnectivityAndInternetAccess {
 
                 attempt.closed = true;
                 CONNECTION_ATTEMPT_QUEUE.removeFirst();
-                CONNECTION_ATTEMPTS.updateAndGet(value -> value > 0 ? value - 1 : 0);
+                decrementNonNegative(CONNECTION_ATTEMPTS);
                 CONNECTION_ATTEMPT_STALLED.set(true);
             }
         }
@@ -2572,5 +2584,3 @@ public final class ConnectivityAndInternetAccess {
         }
     }
 }
-
-
