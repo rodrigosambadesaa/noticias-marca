@@ -30,10 +30,19 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_centerVertical="true"
+                android:layout_toStartOf="@id/layoutNetworkStatusPill"
+                android:layout_toLeftOf="@id/layoutNetworkStatusPill"
+                android:fontFamily="sans-serif-medium"
+                android:includeFontPadding="true"
+                android:maxLines="1"
                 android:text="Noticias MARCA"
-                android:textColor="#FFFFFF"
-                android:textSize="18sp"
-                android:textStyle="bold" />
+                android:textColor="@android:color/white"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:shadowColor="#80000000"
+                android:shadowDx="0"
+                android:shadowDy="1"
+                android:shadowRadius="2" />
 
             <!-- Network Status Pill Badge -->
             <LinearLayout
