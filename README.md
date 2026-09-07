@@ -9,4 +9,6 @@ Remote loading uses a cheap `ConnectivityAndInternetAccess.isConnected()`/capabi
 
 Validation: `./gradlew testDebugUnitTest lintRelease assembleRelease`.
 
+Orientation changes restore the cached list, pagination state and `RecyclerView` scroll position without starting another RSS download.
+
 This is not an official MARCA application.

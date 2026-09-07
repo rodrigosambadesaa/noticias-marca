@@ -2,6 +2,7 @@ package com.example.muyinteresante;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.os.Parcelable;
 import android.support.v4.view.OnApplyWindowInsetsListener;
 import android.support.v4.view.ViewCompat;
 import android.support.v4.view.WindowInsetsCompat;
@@ -37,10 +38,16 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
     private static final String RSS_PAGE_URL = "https://e00-xlk-ue-marca.uecdn.es/rss/googlenews/portada.xml?page=";
     private static final int LOAD_MORE_THRESHOLD = 4;
     private static final int MAX_CONSECUTIVE_DUPLICATE_PAGES = 2;
+    private static final String STATE_SCROLL = "main.scroll_state";
+    private static final String STATE_NEXT_PAGE = "main.next_archive_page";
+    private static final String STATE_HAS_MORE = "main.has_more_news";
+    private static final String STATE_DUPLICATES = "main.duplicate_pages";
 
     private SwipeRefreshLayout swipeRefreshLayout;
     private RecyclerView rvNoticias;
     private NoticiasAdapter adapter;
+    private LinearLayoutManager layoutManager;
+    private Parcelable pendingScrollState;
 
     private LinearLayout bannerNetworkNotice;
     private TextView tvBannerText;
@@ -107,8 +114,14 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
             });
         }
 
-        final LinearLayoutManager layoutManager = new LinearLayoutManager(this);
+        layoutManager = new LinearLayoutManager(this);
         rvNoticias.setLayoutManager(layoutManager);
+        if (savedInstanceState != null) {
+            pendingScrollState = savedInstanceState.getParcelable(STATE_SCROLL);
+            nextArchivePage = savedInstanceState.getInt(STATE_NEXT_PAGE, 2);
+            hasMoreNews = savedInstanceState.getBoolean(STATE_HAS_MORE, false);
+            consecutiveDuplicatePages = savedInstanceState.getInt(STATE_DUPLICATES, 0);
+        }
         adapter = new NoticiasAdapter(this, new ArrayList<NoticiaRSS>(), new NoticiasAdapter.OnNoticiaClickListener() {
             @Override
             public void onNoticiaClick(NoticiaRSS noticia) {
@@ -164,7 +177,18 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
         btnDiagnosticarRed.setOnClickListener(listenerDiagnostico);
 
         // Cargar noticias iniciales (intenta descargar o usa caché offline)
-        cargarNoticiasIniciales();
+        cargarNoticiasIniciales(savedInstanceState == null);
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        if (layoutManager != null) {
+            outState.putParcelable(STATE_SCROLL, layoutManager.onSaveInstanceState());
+        }
+        outState.putInt(STATE_NEXT_PAGE, nextArchivePage);
+        outState.putBoolean(STATE_HAS_MORE, hasMoreNews);
+        outState.putInt(STATE_DUPLICATES, consecutiveDuplicatePages);
+        super.onSaveInstanceState(outState);
     }
 
     @Override
@@ -253,7 +277,7 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
         }
     }
 
-    private void cargarNoticiasIniciales() {
+    private void cargarNoticiasIniciales(boolean descargarRemoto) {
         // Cargar desde caché offline primero para renderizado instantáneo
         ArrayList<NoticiaRSS> cached = NewsCacheManager.loadNewsFromCache(this);
         if (cached != null && !cached.isEmpty()) {
@@ -262,8 +286,29 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
             rvNoticias.setVisibility(View.VISIBLE);
         }
 
+        if (!descargarRemoto) {
+            // Configuration changes restore the cached list and scroll state only;
+            // the existing screen must not issue another RSS request.
+            restaurarEstadoScroll();
+            Log.d(TAG, "Recreación de actividad detectada: se conserva la lista y no se repite la descarga RSS.");
+            return;
+        }
+
         // Luego lanzar la descarga del RSS
         ejecutarDescargarNoticias();
+    }
+
+    private void restaurarEstadoScroll() {
+        if (pendingScrollState == null || layoutManager == null) {
+            return;
+        }
+        rvNoticias.post(new Runnable() {
+            @Override
+            public void run() {
+                layoutManager.onRestoreInstanceState(pendingScrollState);
+                pendingScrollState = null;
+            }
+        });
     }
 
     private void ejecutarDescargarNoticias() {
