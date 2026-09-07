@@ -17,6 +17,7 @@ import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -45,6 +46,7 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
 
     private SwipeRefreshLayout swipeRefreshLayout;
     private RecyclerView rvNoticias;
+    private Toolbar toolbar;
     private NoticiasAdapter adapter;
     private LinearLayoutManager layoutManager;
     private Parcelable pendingScrollState;
@@ -67,13 +69,15 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
     private boolean hasMoreNews = false;
     private int nextArchivePage = 2;
     private int consecutiveDuplicatePages = 0;
+    private int toolbarBaseHeight;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        final Toolbar toolbar = findViewById(R.id.toolbar);
+        toolbar = findViewById(R.id.toolbar);
+        toolbarBaseHeight = toolbar.getLayoutParams().height;
         setSupportActionBar(toolbar);
         if (getSupportActionBar() != null) {
             getSupportActionBar().setDisplayShowTitleEnabled(false);
@@ -103,12 +107,17 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
                     int left = insets.getSystemWindowInsetLeft();
                     int right = insets.getSystemWindowInsetRight();
 
-                    // The inset belongs outside the fixed-height toolbar. Applying
-                    // it to toolbar padding compresses and vertically misaligns
-                    // the title/status pill on edge-to-edge devices.
-                    rootView.setPadding(left, top, right, 0);
+                    // The status-bar inset is part of the blue header. Growing the
+                    // Toolbar keeps the title/status pill in the action-bar area
+                    // instead of leaving a non-blue gap above it.
+                    rootView.setPadding(0, 0, 0, 0);
                     if (toolbar != null) {
-                        toolbar.setPadding(0, 0, 0, 0);
+                        toolbar.setPadding(left, top, right, 0);
+                        ViewGroup.LayoutParams toolbarParams = toolbar.getLayoutParams();
+                        if (toolbarBaseHeight > 0 && toolbarParams != null) {
+                            toolbarParams.height = toolbarBaseHeight + top;
+                            toolbar.setLayoutParams(toolbarParams);
+                        }
                     }
                     if (rvNoticias != null && bottom > 0) {
                         rvNoticias.setPadding(left, rvNoticias.getPaddingTop(), right, bottom + 12);
