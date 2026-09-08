@@ -77,9 +77,18 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
         if (currentNetworkState != null && !currentNetworkState.isConnected()) {
             return false;
         }
-        return RemoteRequestPolicy.shouldStartRequest(
-                ConnectivityAndInternetAccess.isConnected(this)
-                        && ConnectivityAndInternetAccess.snapshotNetworkState(this).isConnected());
+        boolean connected = ConnectivityAndInternetAccess.isConnected(this)
+                && ConnectivityAndInternetAccess.snapshotNetworkState(this).isConnected();
+        // A local VPN (for example AdGuard) can expose a VPN transport before
+        // Android has validated its upstream Internet path. Do not start RSS
+        // work through that route until the path is actually validated.
+        if (connected
+                && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                && ConnectivityAndInternetAccess.vpnActive(this)
+                && !ConnectivityAndInternetAccess.isInternetValidated(this)) {
+            return false;
+        }
+        return RemoteRequestPolicy.shouldStartRequest(connected);
     }
 
     @Override
@@ -263,22 +272,28 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
         boolean isValidated = state != null
                 ? state.isInternetValidated()
                 : ConnectivityAndInternetAccess.isInternetValidated(this);
+        boolean internetUsable = isConnected
+                && (!isVpn || Build.VERSION.SDK_INT < Build.VERSION_CODES.M || isValidated);
 
         Log.d(TAG, "Chequeo de red: Connected=" + isConnected +
                 ", Wifi=" + isWifi + ", Mobile=" + isMobile +
                 ", VPN=" + isVpn + ", Airplane=" + isAirplane + ", Fast=" + isFast);
 
-        if (!isConnected) {
+        if (!internetUsable) {
             // Disconnected / Offline
             viewNetworkDot.setBackgroundResource(R.color.status_offline);
-            tvNetworkStatusText.setText(isAirplane ? "Modo Avión" : "Sin red");
+            tvNetworkStatusText.setText(isAirplane
+                    ? "Modo Avión"
+                    : (isVpn ? "VPN sin Internet" : "Sin red"));
             tvNetworkStatusText.setTextColor(getResources().getColor(R.color.status_offline));
 
             bannerNetworkNotice.setVisibility(View.VISIBLE);
             bannerNetworkNotice.setBackgroundResource(R.color.status_offline_bg);
             tvBannerText.setText(isAirplane ?
                     "Modo Avión activado. Mostrando noticias guardadas en caché." :
-                    "Dispositivo sin conexión a internet. Mostrando noticias guardadas en caché.");
+                    isVpn
+                            ? "VPN activa sin acceso validado a internet. Mostrando noticias guardadas en caché."
+                            : "Dispositivo sin conexión a internet. Mostrando noticias guardadas en caché.");
         } else if (isCaptive) {
             // Captive Portal
             viewNetworkDot.setBackgroundResource(R.color.status_warning);
@@ -528,6 +543,9 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
         boolean isMobile = ConnectivityAndInternetAccess.isConnectedMobile(this);
         boolean isFast = ConnectivityAndInternetAccess.isConnectedFast(this);
         boolean isVpn = ConnectivityAndInternetAccess.vpnActive(this);
+        boolean internetUsable = isConnected
+                && (!isVpn || Build.VERSION.SDK_INT < Build.VERSION_CODES.M
+                || diagnosticState.isInternetValidated());
         boolean isAirplane = ConnectivityAndInternetAccess.isAirplaneModeOn(this);
 
         // Sondeo activo DNS/HTTP
@@ -541,9 +559,16 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
 
                     StringBuilder sb = new StringBuilder();
                     sb.append("📡 ESTADO DE INTERFAZ DE RED:\n");
-                    String generalStatus = !isConnected
-                            ? (isConnectedOrConnecting ? "Conectando..." : "Desconectado")
-                            : "Conectado";
+                    String generalStatus;
+                    if (internetUsable) {
+                        generalStatus = "Conectado";
+                    } else if (isVpn) {
+                        generalStatus = "VPN activa, Internet no validado";
+                    } else if (!isConnected && isConnectedOrConnecting) {
+                        generalStatus = "Conectando...";
+                    } else {
+                        generalStatus = "Desconectado";
+                    }
                     sb.append("• Estado general: ").append(generalStatus).append("\n");
                     sb.append("• Tipo de red: ").append(isWifi ? "Wi-Fi" : (isMobile ? "Móvil / Celular" : "Otra / Ninguna")).append("\n");
                     sb.append("• Velocidad estimada: ").append(isFast ? "Rápida (High Speed)" : "Lenta / Desconocida").append("\n");
