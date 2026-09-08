@@ -71,6 +71,12 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
     private int consecutiveDuplicatePages = 0;
     private int toolbarBaseHeight;
 
+    private boolean hayRedUtilizable() {
+        return RemoteRequestPolicy.shouldStartRequest(
+                ConnectivityAndInternetAccess.isConnected(this)
+                        && ConnectivityAndInternetAccess.snapshotNetworkState(this).isConnected());
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -326,8 +332,7 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
 
     private void ejecutarDescargarNoticias() {
         // Guard barato: la petición RSS real es la prueba definitiva del feed.
-        if (!RemoteRequestPolicy.shouldStartRequest(
-                ConnectivityAndInternetAccess.isConnected(this))) {
+        if (!hayRedUtilizable()) {
             Toast.makeText(this, "Sin conexión disponible para iniciar la descarga.", Toast.LENGTH_SHORT).show();
             usarNoticiasOffline();
             return;
@@ -347,8 +352,7 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
             return;
         }
 
-        if (!RemoteRequestPolicy.shouldStartRequest(
-                ConnectivityAndInternetAccess.isConnected(this))) {
+        if (!hayRedUtilizable()) {
             Log.d(TAG, "No se cargan más noticias: sin conexión disponible.");
             Toast.makeText(this, "Sin conexión. Se reintentará al volver a estar online.", Toast.LENGTH_SHORT).show();
             return;

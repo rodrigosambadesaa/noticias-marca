@@ -93,6 +93,7 @@ public class DescargaNoticiasRSS extends AsyncTask<String, Integer, ArrayList<No
     private ProgressDialog pd;
     private DownloadFailure failure;
     private boolean receivedHttpResponse;
+    private boolean connectionAttemptStarted;
 
     public DescargaNoticiasRSS(Context contexto, iNoticiaRSS objetoReceptor) {
         this(contexto, objetoReceptor, true);
@@ -114,7 +115,20 @@ public class DescargaNoticiasRSS extends AsyncTask<String, Integer, ArrayList<No
     protected void onPreExecute() {
         super.onPreExecute();
         if (contexto != null) {
+            // The background guard is still required, but it is too late to
+            // prevent a misleading progress dialog. Re-check immediately
+            // before starting the attempt and showing any progress UI.
+            if (!RemoteRequestPolicy.shouldStartRequest(
+                    ConnectivityAndInternetAccess.isConnected(contexto))) {
+                failure = new DownloadFailure(
+                        FailureKind.OFFLINE_GUARD,
+                        0,
+                        null,
+                        false);
+                return;
+            }
             ConnectivityAndInternetAccess.beginConnectionAttempt(contexto);
+            connectionAttemptStarted = true;
         }
 
         if (mostrarProgreso && contexto != null) {
@@ -258,7 +272,10 @@ public class DescargaNoticiasRSS extends AsyncTask<String, Integer, ArrayList<No
     @Override
     protected void onPostExecute(ArrayList<NoticiaRSS> result) {
         super.onPostExecute(result);
-        ConnectivityAndInternetAccess.endConnectionAttempt();
+        if (connectionAttemptStarted) {
+            ConnectivityAndInternetAccess.endConnectionAttempt();
+            connectionAttemptStarted = false;
+        }
         if (pd != null) {
             pd.dismiss();
         }
@@ -297,7 +314,10 @@ public class DescargaNoticiasRSS extends AsyncTask<String, Integer, ArrayList<No
     @Override
     protected void onCancelled() {
         super.onCancelled();
-        ConnectivityAndInternetAccess.endConnectionAttempt();
+        if (connectionAttemptStarted) {
+            ConnectivityAndInternetAccess.endConnectionAttempt();
+            connectionAttemptStarted = false;
+        }
         if (pd != null) {
             pd.dismiss();
         }
