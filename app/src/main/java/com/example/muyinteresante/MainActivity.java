@@ -65,6 +65,7 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
 
     private ConnectivityAndInternetAccess.NetworkObserver networkObserver;
     private ConnectivityAndInternetAccess.NetworkState currentNetworkState;
+    private boolean initialLoadPending;
 
     private boolean isLoadingMore = false;
     private boolean hasMoreNews = false;
@@ -73,6 +74,9 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
     private int toolbarBaseHeight;
 
     private boolean hayRedUtilizable() {
+        if (currentNetworkState != null && !currentNetworkState.isConnected()) {
+            return false;
+        }
         return RemoteRequestPolicy.shouldStartRequest(
                 ConnectivityAndInternetAccess.isConnected(this)
                         && ConnectivityAndInternetAccess.snapshotNetworkState(this).isConnected());
@@ -196,8 +200,9 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
         layoutNetworkStatusPill.setOnClickListener(listenerDiagnostico);
         btnDiagnosticarRed.setOnClickListener(listenerDiagnostico);
 
-        // Cargar noticias iniciales (intenta descargar o usa caché offline)
-        cargarNoticiasIniciales(savedInstanceState == null);
+        // The first load waits until onStart has installed the passive observer,
+        // so the initial UI and request use the same network snapshot.
+        initialLoadPending = savedInstanceState == null;
     }
 
     @Override
@@ -222,6 +227,13 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
                 actualizarInterfazEstadoRed(state);
             }
         });
+        currentNetworkState = networkObserver.getLatestState();
+        actualizarInterfazEstadoRed(currentNetworkState);
+
+        if (initialLoadPending) {
+            initialLoadPending = false;
+            cargarNoticiasIniciales(true);
+        }
     }
 
     @Override
@@ -504,9 +516,14 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
                 .setPositiveButton("Cerrar", null)
                 .show();
 
-        // Chequeos estáticos rápidos de ConnectivityAndInternetAccess
-        boolean isConnectedOrConnecting = ConnectivityAndInternetAccess.isConnectedOrConnecting(this);
-        boolean isConnected = ConnectivityAndInternetAccess.isConnected(this);
+        // The passive snapshot is the authoritative status shown to the user.
+        // Active probes below are only used to diagnose Internet reachability.
+        ConnectivityAndInternetAccess.NetworkState diagnosticState = currentNetworkState != null
+                ? currentNetworkState
+                : ConnectivityAndInternetAccess.snapshotNetworkState(this);
+        boolean isConnected = diagnosticState.isConnected();
+        boolean isConnectedOrConnecting = isConnected
+                || ConnectivityAndInternetAccess.isConnectedOrConnecting(this);
         boolean isWifi = ConnectivityAndInternetAccess.isConnectedWifi(this);
         boolean isMobile = ConnectivityAndInternetAccess.isConnectedMobile(this);
         boolean isFast = ConnectivityAndInternetAccess.isConnectedFast(this);
@@ -524,7 +541,10 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
 
                     StringBuilder sb = new StringBuilder();
                     sb.append("📡 ESTADO DE INTERFAZ DE RED:\n");
-                    sb.append("• Estado general: ").append(isConnected ? "Conectado" : (isConnectedOrConnecting ? "Conectando..." : "Desconectado")).append("\n");
+                    String generalStatus = !isConnected
+                            ? (isConnectedOrConnecting ? "Conectando..." : "Desconectado")
+                            : "Conectado";
+                    sb.append("• Estado general: ").append(generalStatus).append("\n");
                     sb.append("• Tipo de red: ").append(isWifi ? "Wi-Fi" : (isMobile ? "Móvil / Celular" : "Otra / Ninguna")).append("\n");
                     sb.append("• Velocidad estimada: ").append(isFast ? "Rápida (High Speed)" : "Lenta / Desconocida").append("\n");
                     sb.append("• Red VPN Activa: ").append(isVpn ? "SÍ" : "No").append("\n");
