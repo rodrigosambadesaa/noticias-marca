@@ -14,6 +14,12 @@ public class RemoteRequestPolicyTest {
     }
 
     @Test
+    public void vpnOnlyNetworkStopsRequestEvenWhenDefaultNetworkLooksConnected() {
+        assertFalse(RemoteRequestPolicy.shouldStartRequest(true, false));
+        assertTrue(RemoteRequestPolicy.shouldStartRequest(true, true));
+    }
+
+    @Test
     public void usableNetworkStartsTheRealRequestDirectly() {
         assertTrue(RemoteRequestPolicy.shouldStartRequest(true));
     }

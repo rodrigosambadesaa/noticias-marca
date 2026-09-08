@@ -77,18 +77,9 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
         if (currentNetworkState != null && !currentNetworkState.isConnected()) {
             return false;
         }
-        boolean connected = ConnectivityAndInternetAccess.isConnected(this)
-                && ConnectivityAndInternetAccess.snapshotNetworkState(this).isConnected();
-        // A local VPN (for example AdGuard) can expose a VPN transport before
-        // Android has validated its upstream Internet path. Do not start RSS
-        // work through that route until the path is actually validated.
-        if (connected
-                && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
-                && ConnectivityAndInternetAccess.vpnActive(this)
-                && !ConnectivityAndInternetAccess.isInternetValidated(this)) {
-            return false;
-        }
-        return RemoteRequestPolicy.shouldStartRequest(connected);
+        return RemoteRequestPolicy.shouldStartRequest(
+                ConnectivityAndInternetAccess.isConnected(this),
+                ConnectivityAndInternetAccess.hasPhysicalNetwork(this));
     }
 
     @Override
@@ -272,8 +263,10 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
         boolean isValidated = state != null
                 ? state.isInternetValidated()
                 : ConnectivityAndInternetAccess.isInternetValidated(this);
-        boolean internetUsable = isConnected
-                && (!isVpn || Build.VERSION.SDK_INT < Build.VERSION_CODES.M || isValidated);
+        boolean hasPhysicalNetwork = ConnectivityAndInternetAccess.hasPhysicalNetwork(this);
+        boolean internetUsable = RemoteRequestPolicy.shouldStartRequest(
+                isConnected,
+                hasPhysicalNetwork);
 
         Log.d(TAG, "Chequeo de red: Connected=" + isConnected +
                 ", Wifi=" + isWifi + ", Mobile=" + isMobile +
@@ -284,15 +277,15 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
             viewNetworkDot.setBackgroundResource(R.color.status_offline);
             tvNetworkStatusText.setText(isAirplane
                     ? "Modo Avión"
-                    : (isVpn ? "VPN sin Internet" : "Sin red"));
+                    : (isVpn && !hasPhysicalNetwork ? "VPN sin red" : "Sin red"));
             tvNetworkStatusText.setTextColor(getResources().getColor(R.color.status_offline));
 
             bannerNetworkNotice.setVisibility(View.VISIBLE);
             bannerNetworkNotice.setBackgroundResource(R.color.status_offline_bg);
             tvBannerText.setText(isAirplane ?
                     "Modo Avión activado. Mostrando noticias guardadas en caché." :
-                    isVpn
-                            ? "VPN activa sin acceso validado a internet. Mostrando noticias guardadas en caché."
+                    isVpn && !hasPhysicalNetwork
+                            ? "VPN activa sin Wi-Fi, datos móviles o Ethernet. Mostrando noticias guardadas en caché."
                             : "Dispositivo sin conexión a internet. Mostrando noticias guardadas en caché.");
         } else if (isCaptive) {
             // Captive Portal
@@ -543,9 +536,10 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
         boolean isMobile = ConnectivityAndInternetAccess.isConnectedMobile(this);
         boolean isFast = ConnectivityAndInternetAccess.isConnectedFast(this);
         boolean isVpn = ConnectivityAndInternetAccess.vpnActive(this);
-        boolean internetUsable = isConnected
-                && (!isVpn || Build.VERSION.SDK_INT < Build.VERSION_CODES.M
-                || diagnosticState.isInternetValidated());
+        boolean hasPhysicalNetwork = ConnectivityAndInternetAccess.hasPhysicalNetwork(this);
+        boolean internetUsable = RemoteRequestPolicy.shouldStartRequest(
+                isConnected,
+                hasPhysicalNetwork);
         boolean isAirplane = ConnectivityAndInternetAccess.isAirplaneModeOn(this);
 
         // Sondeo activo DNS/HTTP
@@ -562,8 +556,8 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
                     String generalStatus;
                     if (internetUsable) {
                         generalStatus = "Conectado";
-                    } else if (isVpn) {
-                        generalStatus = "VPN activa, Internet no validado";
+                    } else if (isVpn && !hasPhysicalNetwork) {
+                        generalStatus = "VPN activa, sin red física";
                     } else if (!isConnected && isConnectedOrConnecting) {
                         generalStatus = "Conectando...";
                     } else {

@@ -18,6 +18,13 @@ public final class RemoteRequestPolicy {
         return usableNetwork;
     }
 
+    /** Both the default network and a physical transport must be available. */
+    public static boolean shouldStartRequest(
+            boolean connectedNetwork,
+            boolean physicalNetwork) {
+        return connectedNetwork && physicalNetwork;
+    }
+
     /** Never run the active diagnosis after any valid HTTP response. */
     public static boolean shouldDiagnoseAfterFailure(
             boolean receivedHttpResponse,

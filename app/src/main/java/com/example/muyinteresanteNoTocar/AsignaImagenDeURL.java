@@ -20,6 +20,7 @@ import android.util.Log;
 import android.widget.ImageView;
 
 import com.example.muyinteresante.util.ConnectivityAndInternetAccess;
+import com.example.muyinteresante.util.RemoteRequestPolicy;
 
 public class AsignaImagenDeURL extends AsyncTask<String,Void,Void> {
 	private static final String TAG = "AsignaImagenDeURL";
@@ -30,6 +31,7 @@ public class AsignaImagenDeURL extends AsyncTask<String,Void,Void> {
 	File f;
 	Context contexto;
 	private String currentUrl;
+	private boolean connectionAttemptStarted;
 
 	public AsignaImagenDeURL(ImageView img, Context c){
 		this.img = img;
@@ -42,7 +44,13 @@ public class AsignaImagenDeURL extends AsyncTask<String,Void,Void> {
 		mapaDeBits = null;
 		f = null;
 		if (contexto != null) {
+			if (!RemoteRequestPolicy.shouldStartRequest(
+					ConnectivityAndInternetAccess.isConnected(contexto),
+					ConnectivityAndInternetAccess.hasPhysicalNetwork(contexto))) {
+				return;
+			}
 			ConnectivityAndInternetAccess.beginConnectionAttempt(contexto);
+			connectionAttemptStarted = true;
 		}
 	}
 
@@ -63,7 +71,9 @@ public class AsignaImagenDeURL extends AsyncTask<String,Void,Void> {
 				}
 
                 // Cheap guard only; the image request itself remains the definitive test.
-                if (contexto != null && !ConnectivityAndInternetAccess.isConnected(contexto)) {
+                if (contexto != null && !RemoteRequestPolicy.shouldStartRequest(
+                        ConnectivityAndInternetAccess.isConnected(contexto),
+                        ConnectivityAndInternetAccess.hasPhysicalNetwork(contexto))) {
                     return null;
                 }
 
@@ -206,7 +216,10 @@ public class AsignaImagenDeURL extends AsyncTask<String,Void,Void> {
 	@Override
 	protected void onPostExecute(Void result) {
 		super.onPostExecute(result);
-		ConnectivityAndInternetAccess.endConnectionAttempt();
+		if (connectionAttemptStarted) {
+			ConnectivityAndInternetAccess.endConnectionAttempt();
+			connectionAttemptStarted = false;
+		}
 		if (img != null) {
 			Object tag = img.getTag();
 			if (mapaDeBits != null && (tag == null || tag.equals(currentUrl))) {
@@ -218,7 +231,10 @@ public class AsignaImagenDeURL extends AsyncTask<String,Void,Void> {
 	@Override
 	protected void onCancelled() {
 		super.onCancelled();
-		ConnectivityAndInternetAccess.endConnectionAttempt();
+		if (connectionAttemptStarted) {
+			ConnectivityAndInternetAccess.endConnectionAttempt();
+			connectionAttemptStarted = false;
+		}
 		if (f != null && f.exists()) {
 			try { f.delete(); } catch(Exception ex){} 
 		}

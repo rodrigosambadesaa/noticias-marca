@@ -21,6 +21,9 @@ import android.webkit.WebViewClient;
 import android.widget.ProgressBar;
 import android.widget.Toast;
 
+import com.example.muyinteresante.util.ConnectivityAndInternetAccess;
+import com.example.muyinteresante.util.RemoteRequestPolicy;
+
 public class DetalleActivity extends AppCompatActivity {
 
     public static final String EXTRA_URL = "extra_url";
@@ -107,7 +110,15 @@ public class DetalleActivity extends AppCompatActivity {
         });
 
         if (articleUrl != null && !articleUrl.isEmpty()) {
-            webView.loadUrl(articleUrl);
+            boolean canLoadRemoteContent = RemoteRequestPolicy.shouldStartRequest(
+                    ConnectivityAndInternetAccess.isConnected(this),
+                    ConnectivityAndInternetAccess.hasPhysicalNetwork(this));
+            if (canLoadRemoteContent) {
+                webView.loadUrl(articleUrl);
+            } else {
+                progressBar.setVisibility(View.GONE);
+                Toast.makeText(this, "Sin conexión. No se puede abrir la noticia.", Toast.LENGTH_SHORT).show();
+            }
         } else {
             Toast.makeText(this, "URL no válida", Toast.LENGTH_SHORT).show();
             finish();

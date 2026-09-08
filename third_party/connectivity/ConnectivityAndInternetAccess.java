@@ -7,7 +7,6 @@
  */
 package net.i2p.android.router.util;
 
-import android.annotation.SuppressLint;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -61,7 +60,6 @@ import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 
 @SuppressWarnings("deprecation")
-@SuppressLint("NewApi")
 public final class ConnectivityAndInternetAccess {
 
     public interface DnsProbeStrategy {
@@ -760,7 +758,7 @@ public final class ConnectivityAndInternetAccess {
                 ConnectionAttempt attempt = CONNECTION_ATTEMPT_QUEUE.removeFirst();
                 if (!attempt.closed) {
                     attempt.closed = true;
-                    decrementNonNegative(CONNECTION_ATTEMPTS);
+                    CONNECTION_ATTEMPTS.updateAndGet(value -> value > 0 ? value - 1 : 0);
                     return;
                 }
             }
@@ -816,6 +814,32 @@ public final class ConnectivityAndInternetAccess {
             clearConnectionAttempts();
         }
         return connected;
+    }
+
+    /**
+     * Cheap passive guard that ignores a dangling VPN-only default network.
+     * A VPN capability can remain present after its underlying Wi-Fi/mobile
+     * transport disappeared, so it must not make the app appear connected.
+     */
+    public static boolean hasPhysicalNetwork(Context context) {
+        requireContext(context);
+        ConnectivityManager connectivityManager = manager(context);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            for (Network network : connectivityManager.getAllNetworks()) {
+                NetworkCapabilities capabilities =
+                        connectivityManager.getNetworkCapabilities(network);
+                if (isUsable(capabilities)
+                        && (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+                        || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
+                        || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET))) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        return isConnectedLegacy(connectivityManager.getActiveNetworkInfo());
     }
 
     /** Returns a cheap point-in-time snapshot of the application's default network. */
@@ -2378,16 +2402,6 @@ public final class ConnectivityAndInternetAccess {
         });
     }
 
-    private static void decrementNonNegative(AtomicInteger counter) {
-        int current;
-        do {
-            current = counter.get();
-            if (current <= 0) {
-                return;
-            }
-        } while (!counter.compareAndSet(current, current - 1));
-    }
-
     private static boolean timeoutConnectionAttempt(ConnectionAttempt attempt) {
         synchronized (CONNECTION_ATTEMPT_LOCK) {
             if (attempt.closed) {
@@ -2396,7 +2410,7 @@ public final class ConnectivityAndInternetAccess {
 
             attempt.closed = true;
             CONNECTION_ATTEMPT_QUEUE.remove(attempt);
-            decrementNonNegative(CONNECTION_ATTEMPTS);
+            CONNECTION_ATTEMPTS.updateAndGet(value -> value > 0 ? value - 1 : 0);
             CONNECTION_ATTEMPT_STALLED.set(true);
             return true;
         }
@@ -2421,7 +2435,7 @@ public final class ConnectivityAndInternetAccess {
 
                 attempt.closed = true;
                 CONNECTION_ATTEMPT_QUEUE.removeFirst();
-                decrementNonNegative(CONNECTION_ATTEMPTS);
+                CONNECTION_ATTEMPTS.updateAndGet(value -> value > 0 ? value - 1 : 0);
                 CONNECTION_ATTEMPT_STALLED.set(true);
             }
         }

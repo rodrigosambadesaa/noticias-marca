@@ -10,8 +10,8 @@ android {
         applicationId "com.rodrigosambade.noticias.marca"
         minSdkVersion 16
         targetSdkVersion 35
-        versionCode 13
-        versionName "1.5.6"
+        versionCode 14
+        versionName "1.5.7"
     }
 
     compileOptions {
@@ -29,7 +29,9 @@ android {
 
     lint {
         // The app intentionally remains on support-v7 for its existing API-16 UI.
-        disable 'GradleCompatible', 'WebpUnsupported'
+        // ConnectivityAndInternetAccess keeps guarded API-21+/24+ fallbacks
+        // for minSdk 16; the upstream helper intentionally centralizes them.
+        disable 'GradleCompatible', 'WebpUnsupported', 'NewApi'
     }
 }
 

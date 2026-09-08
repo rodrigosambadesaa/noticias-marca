@@ -119,7 +119,8 @@ public class DescargaNoticiasRSS extends AsyncTask<String, Integer, ArrayList<No
             // prevent a misleading progress dialog. Re-check immediately
             // before starting the attempt and showing any progress UI.
             if (!RemoteRequestPolicy.shouldStartRequest(
-                    ConnectivityAndInternetAccess.isConnected(contexto))) {
+                    ConnectivityAndInternetAccess.isConnected(contexto),
+                    ConnectivityAndInternetAccess.hasPhysicalNetwork(contexto))) {
                 failure = new DownloadFailure(
                         FailureKind.OFFLINE_GUARD,
                         0,
@@ -149,7 +150,8 @@ public class DescargaNoticiasRSS extends AsyncTask<String, Integer, ArrayList<No
     protected ArrayList<NoticiaRSS> doInBackground(String... params) {
         if (contexto != null
                 && !RemoteRequestPolicy.shouldStartRequest(
-                ConnectivityAndInternetAccess.isConnected(contexto))) {
+                ConnectivityAndInternetAccess.isConnected(contexto),
+                ConnectivityAndInternetAccess.hasPhysicalNetwork(contexto))) {
             failure = new DownloadFailure(
                     FailureKind.OFFLINE_GUARD,
                     0,
