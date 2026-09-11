@@ -3,5 +3,9 @@
 
     <string name="app_name">Noticias MARCA</string>
     <string name="actualizar">Actualizar</string>
+    <string name="toast_sin_conexion">Sin conexión de red.</string>
+    <string name="toast_internet_no_disponible">No se puede acceder a Internet.</string>
+    <string name="toast_backend_no_disponible">Hay conexión a Internet, pero el servicio no está disponible.</string>
+    <string name="toast_sin_mas_noticias">No hay más noticias antiguas disponibles.</string>
 
 </resources>

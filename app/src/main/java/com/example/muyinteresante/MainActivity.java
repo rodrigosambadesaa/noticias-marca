@@ -361,7 +361,7 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
     private void ejecutarDescargarNoticias() {
         // Guard barato: la petición RSS real es la prueba definitiva del feed.
         if (!hayRedUtilizable()) {
-            Toast.makeText(this, "Sin conexión disponible para iniciar la descarga.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, R.string.toast_sin_conexion, Toast.LENGTH_SHORT).show();
             usarNoticiasOffline();
             return;
         }
@@ -382,7 +382,7 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
 
         if (!hayRedUtilizable()) {
             Log.d(TAG, "No se cargan más noticias: sin conexión disponible.");
-            Toast.makeText(this, "Sin conexión. Se reintentará al volver a estar online.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, R.string.toast_sin_conexion, Toast.LENGTH_SHORT).show();
             return;
         }
 
@@ -403,7 +403,7 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
                 if (listaNoticias.isEmpty()) {
                     hasMoreNews = false;
                     Log.d(TAG, "Fin del archivo RSS alcanzado en la página " + pageToLoad);
-                    Toast.makeText(MainActivity.this, "No hay más noticias antiguas disponibles", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(MainActivity.this, R.string.toast_sin_mas_noticias, Toast.LENGTH_SHORT).show();
                     return;
                 }
 
@@ -496,14 +496,14 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
             String suffix = status > 0 ? " (HTTP " + status + ")" : "";
             Toast.makeText(
                     this,
-                    "El feed de noticias no está disponible" + suffix + ".",
+                    getString(R.string.toast_backend_no_disponible) + suffix,
                     Toast.LENGTH_SHORT).show();
         } else if (kind == DescargaNoticiasRSS.FailureKind.OFFLINE_GUARD
                 || kind == DescargaNoticiasRSS.FailureKind.GENERAL_CONNECTIVITY_UNAVAILABLE
                 || kind == DescargaNoticiasRSS.FailureKind.AMBIGUOUS_CONNECTIVITY) {
             Toast.makeText(
                     this,
-                    "Problema de conectividad. Mostrando noticias guardadas.",
+                    getString(R.string.toast_internet_no_disponible),
                     Toast.LENGTH_SHORT).show();
         } else {
             Toast.makeText(
