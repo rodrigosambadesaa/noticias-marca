@@ -175,8 +175,8 @@ public class DescargaNoticiasRSS extends AsyncTask<String, Integer, ArrayList<No
 
             URL url = new URL(params[0]);
             URLConnection rawConnection = url.openConnection();
-            rawConnection.setConnectTimeout(10000);
-            rawConnection.setReadTimeout(10000);
+            rawConnection.setConnectTimeout(15000);
+            rawConnection.setReadTimeout(30000);
             rawConnection.setUseCaches(false);
             rawConnection.setRequestProperty(
                     "Accept",
