@@ -171,6 +171,13 @@ public class DescargaNoticiasRSS extends AsyncTask<String, Integer, ArrayList<No
             DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
             dbf.setIgnoringComments(true);
             dbf.setCoalescing(true);
+            try {
+                dbf.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+                dbf.setFeature("http://xml.org/sax/features/external-general-entities", false);
+                dbf.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+            } catch (Exception e) {
+                android.util.Log.w("XML_SEC", "El parser no soporta las configuraciones de seguridad XXE", e);
+            }
             DocumentBuilder db = dbf.newDocumentBuilder();
 
             URL url = new URL(params[0]);
