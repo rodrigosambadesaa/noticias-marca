@@ -3,6 +3,7 @@ package com.example.muyinteresante;
 import android.content.Intent;
 import android.os.Build;
 import android.os.Bundle;
+import androidx.lifecycle.ViewModelProvider;
 import android.os.Parcelable;
 import androidx.core.view.OnApplyWindowInsetsListener;
 import androidx.core.view.ViewCompat;
@@ -67,10 +68,7 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
     private ConnectivityAndInternetAccess.NetworkState currentNetworkState;
     private boolean initialLoadPending;
 
-    private boolean isLoadingMore = false;
-    private boolean hasMoreNews = false;
-    private int nextArchivePage = 2;
-    private int consecutiveDuplicatePages = 0;
+    private NewsViewModel newsState;
     private int toolbarBaseHeight;
 
     private boolean hayRedUtilizable() {
@@ -86,6 +84,7 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        newsState = new ViewModelProvider(this).get(NewsViewModel.class);
 
         toolbar = findViewById(R.id.toolbar);
         toolbarBaseHeight = toolbar.getLayoutParams().height;
@@ -142,9 +141,9 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
         rvNoticias.setLayoutManager(layoutManager);
         if (savedInstanceState != null) {
             pendingScrollState = savedInstanceState.getParcelable(STATE_SCROLL);
-            nextArchivePage = savedInstanceState.getInt(STATE_NEXT_PAGE, 2);
-            hasMoreNews = savedInstanceState.getBoolean(STATE_HAS_MORE, false);
-            consecutiveDuplicatePages = savedInstanceState.getInt(STATE_DUPLICATES, 0);
+            newsState.nextArchivePage = savedInstanceState.getInt(STATE_NEXT_PAGE, 2);
+            newsState.hasMoreNews = savedInstanceState.getBoolean(STATE_HAS_MORE, false);
+            newsState.consecutiveDuplicatePages = savedInstanceState.getInt(STATE_DUPLICATES, 0);
         }
         adapter = new NoticiasAdapter(this, new ArrayList<NoticiaRSS>(), new NoticiasAdapter.OnNoticiaClickListener() {
             @Override
@@ -158,6 +157,11 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
             }
         });
         rvNoticias.setAdapter(adapter);
+        if (!newsState.visibleNews.isEmpty()) {
+            adapter.updateData(newsState.visibleNews);
+            layoutEmptyState.setVisibility(View.GONE);
+            rvNoticias.setVisibility(View.VISIBLE);
+        }
 
         // Infinite scroll: cuando el usuario se aproxima al final se solicita la
         // siguiente página del feed oficial, que contiene noticias más antiguas.
@@ -165,7 +169,7 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
             @Override
             public void onScrolled(RecyclerView recyclerView, int dx, int dy) {
                 super.onScrolled(recyclerView, dx, dy);
-                if (dy <= 0 || isLoadingMore || !hasMoreNews || adapter == null) {
+                if (dy <= 0 || newsState.isLoadingMore || !newsState.hasMoreNews || adapter == null) {
                     return;
                 }
 
@@ -203,6 +207,7 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
         // The first load waits until onStart has installed the passive observer,
         // so the initial UI and request use the same network snapshot.
         initialLoadPending = savedInstanceState == null;
+        if (savedInstanceState != null) cargarNoticiasIniciales(false);
     }
 
     @Override
@@ -210,9 +215,9 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
         if (layoutManager != null) {
             outState.putParcelable(STATE_SCROLL, layoutManager.onSaveInstanceState());
         }
-        outState.putInt(STATE_NEXT_PAGE, nextArchivePage);
-        outState.putBoolean(STATE_HAS_MORE, hasMoreNews);
-        outState.putInt(STATE_DUPLICATES, consecutiveDuplicatePages);
+        outState.putInt(STATE_NEXT_PAGE, newsState.nextArchivePage);
+        outState.putBoolean(STATE_HAS_MORE, newsState.hasMoreNews);
+        outState.putInt(STATE_DUPLICATES, newsState.consecutiveDuplicatePages);
         super.onSaveInstanceState(outState);
     }
 
@@ -238,6 +243,10 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
 
     @Override
     protected void onStop() {
+        if (adapter != null) {
+            newsState.visibleNews.clear();
+            newsState.visibleNews.addAll(adapter.getAllData());
+        }
         super.onStop();
         if (networkObserver != null) {
             networkObserver.close();
@@ -268,54 +277,54 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
                 isConnected,
                 hasPhysicalNetwork);
 
-        Log.d(TAG, "Chequeo de red: Connected=" + isConnected +
-                ", Wifi=" + isWifi + ", Mobile=" + isMobile +
-                ", VPN=" + isVpn + ", Airplane=" + isAirplane + ", Fast=" + isFast);
+        Log.d(TAG, getString(R.string.main_text_01) + isConnected +
+                getString(R.string.main_text_02) + isWifi + getString(R.string.main_text_03) + isMobile +
+                getString(R.string.main_text_04) + isVpn + getString(R.string.main_text_05) + isAirplane + getString(R.string.main_text_06) + isFast);
 
         if (!internetUsable) {
             // Disconnected / Offline
             viewNetworkDot.setBackgroundResource(R.color.status_offline);
             tvNetworkStatusText.setText(isAirplane
-                    ? "Modo Avión"
-                    : (isVpn && !hasPhysicalNetwork ? "VPN sin red" : "Sin red"));
+                    ? getString(R.string.main_text_07)
+                    : (isVpn && !hasPhysicalNetwork ? getString(R.string.main_text_08) : getString(R.string.main_text_09)));
             tvNetworkStatusText.setTextColor(getResources().getColor(R.color.status_offline));
 
             bannerNetworkNotice.setVisibility(View.VISIBLE);
             bannerNetworkNotice.setBackgroundResource(R.color.status_offline_bg);
             tvBannerText.setText(isAirplane ?
-                    "Modo Avión activado. Mostrando noticias guardadas en caché." :
+                    getString(R.string.main_text_10) :
                     isVpn && !hasPhysicalNetwork
-                            ? "VPN activa sin Wi-Fi, datos móviles o Ethernet. Mostrando noticias guardadas en caché."
-                            : "Dispositivo sin conexión a internet. Mostrando noticias guardadas en caché.");
+                            ? getString(R.string.main_text_11)
+                            : getString(R.string.main_text_12));
         } else if (isCaptive) {
             // Captive Portal
             viewNetworkDot.setBackgroundResource(R.color.status_warning);
-            tvNetworkStatusText.setText("Portal Cautivo");
+            tvNetworkStatusText.setText(getString(R.string.main_text_13));
             tvNetworkStatusText.setTextColor(getResources().getColor(R.color.status_warning));
 
             bannerNetworkNotice.setVisibility(View.VISIBLE);
             bannerNetworkNotice.setBackgroundResource(R.color.status_warning_bg);
-            tvBannerText.setText("Se requiere inicio de sesión en red (Portal Cautivo detectado).");
+            tvBannerText.setText(getString(R.string.main_text_14));
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !isValidated) {
             // Connected without validated internet
             viewNetworkDot.setBackgroundResource(R.color.status_warning);
-            tvNetworkStatusText.setText("Conectando...");
+            tvNetworkStatusText.setText(getString(R.string.main_text_15));
             tvNetworkStatusText.setTextColor(getResources().getColor(R.color.status_warning));
 
             bannerNetworkNotice.setVisibility(View.VISIBLE);
             bannerNetworkNotice.setBackgroundResource(R.color.status_warning_bg);
-            tvBannerText.setText("Conectado a la interfaz de red pero sin acceso verificado a internet.");
+            tvBannerText.setText(getString(R.string.main_text_16));
         } else {
             // Fully connected & validated
             viewNetworkDot.setBackgroundResource(R.color.status_online);
 
-            String statusType = "Online";
+            String statusType = getString(R.string.main_text_17);
             if (isVpn) {
-                statusType = "Online (VPN)";
+                statusType = getString(R.string.main_text_18);
             } else if (isWifi) {
-                statusType = "Online (Wi-Fi)";
+                statusType = getString(R.string.main_text_19);
             } else if (isMobile) {
-                statusType = isFast ? "Online (4G/5G)" : "Online (Móvil Lento)";
+                statusType = isFast ? getString(R.string.main_text_20) : getString(R.string.main_text_21);
             }
             tvNetworkStatusText.setText(statusType);
             tvNetworkStatusText.setTextColor(getResources().getColor(R.color.status_online));
@@ -325,25 +334,25 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
     }
 
     private void cargarNoticiasIniciales(boolean descargarRemoto) {
-        // Cargar desde caché offline primero para renderizado instantáneo
-        ArrayList<NoticiaRSS> cached = NewsCacheManager.loadNewsFromCache(this);
-        if (cached != null && !cached.isEmpty()) {
-            adapter.updateData(cached);
+        if (!newsState.visibleNews.isEmpty()) {
+            adapter.updateData(newsState.visibleNews);
             layoutEmptyState.setVisibility(View.GONE);
             rvNoticias.setVisibility(View.VISIBLE);
-        }
-
-        if (!descargarRemoto) {
-            // Configuration changes restore the cached list and scroll state only;
-            // the existing screen must not issue another RSS request.
             restaurarEstadoScroll();
-            Log.d(TAG, "Recreación de actividad detectada: se conserva la lista y no se repite la descarga RSS.");
-            return;
+        } else {
+            NewsCacheManager.loadNewsFromCache(this, cached -> {
+                if (isFinishing() || isDestroyed() || newsState.hasFreshFeed) return;
+                if (cached != null && !cached.isEmpty() && adapter.getAllData().isEmpty()) {
+                    adapter.updateData(cached);
+                    layoutEmptyState.setVisibility(View.GONE);
+                    rvNoticias.setVisibility(View.VISIBLE);
+                    restaurarEstadoScroll();
+                }
+            });
         }
-
-        // Luego lanzar la descarga del RSS
-        ejecutarDescargarNoticias();
+        if (descargarRemoto) ejecutarDescargarNoticias();
     }
+
 
     private void restaurarEstadoScroll() {
         if (pendingScrollState == null || layoutManager == null) {
@@ -376,7 +385,7 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
      * un diálogo modal. Las páginas se acumulan en el adapter y se deduplican.
      */
     private void cargarMasNoticias() {
-        if (isLoadingMore || !hasMoreNews || adapter == null) {
+        if (newsState.isLoadingMore || !newsState.hasMoreNews || adapter == null) {
             return;
         }
 
@@ -386,14 +395,14 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
             return;
         }
 
-        isLoadingMore = true;
-        final int pageToLoad = nextArchivePage;
+        newsState.isLoadingMore = true;
+        final int pageToLoad = newsState.nextArchivePage;
         Log.d(TAG, "Solicitando noticias antiguas. Página RSS: " + pageToLoad);
 
         new DescargaNoticiasRSS(MainActivity.this, new iNoticiaRSS() {
             @Override
             public void onRecibeNoticiasRSS(ArrayList<NoticiaRSS> listaNoticias) {
-                isLoadingMore = false;
+                newsState.isLoadingMore = false;
 
                 if (listaNoticias == null) {
                     Log.w(TAG, "Error descargando la página RSS " + pageToLoad + ". Se reintentará al volver al final.");
@@ -401,25 +410,25 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
                 }
 
                 if (listaNoticias.isEmpty()) {
-                    hasMoreNews = false;
+                    newsState.hasMoreNews = false;
                     Log.d(TAG, "Fin del archivo RSS alcanzado en la página " + pageToLoad);
                     Toast.makeText(MainActivity.this, R.string.toast_sin_mas_noticias, Toast.LENGTH_SHORT).show();
                     return;
                 }
 
                 int added = adapter.appendData(listaNoticias);
-                nextArchivePage = pageToLoad + 1;
+                newsState.nextArchivePage = pageToLoad + 1;
 
                 if (added > 0) {
-                    consecutiveDuplicatePages = 0;
+                    newsState.consecutiveDuplicatePages = 0;
                     NewsCacheManager.saveNewsToCache(MainActivity.this, adapter.getAllData());
                     Log.d(TAG, "Página " + pageToLoad + " cargada: " + added + " noticias nuevas (" + listaNoticias.size() + " recibidas).");
                 } else {
-                    consecutiveDuplicatePages++;
+                    newsState.consecutiveDuplicatePages++;
                     Log.d(TAG, "Página " + pageToLoad + " sin noticias nuevas tras deduplicar.");
 
-                    if (consecutiveDuplicatePages >= MAX_CONSECUTIVE_DUPLICATE_PAGES) {
-                        hasMoreNews = false;
+                    if (newsState.consecutiveDuplicatePages >= MAX_CONSECUTIVE_DUPLICATE_PAGES) {
+                        newsState.hasMoreNews = false;
                         Log.w(TAG, "Se detiene la paginación tras varias páginas consecutivas duplicadas.");
                     } else {
                         rvNoticias.post(new Runnable() {
@@ -434,43 +443,52 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
 
             @Override
             public void onError(DescargaNoticiasRSS.DownloadFailure failure) {
-                isLoadingMore = false;
+                newsState.isLoadingMore = false;
                 informarFalloRemoto(failure, true);
             }
         }, false).execute(RSS_PAGE_URL + pageToLoad, NoticiaRSS.RSS_MUY_INTERESANTE);
     }
 
     private void usarNoticiasOffline() {
-        ArrayList<NoticiaRSS> cached = NewsCacheManager.loadNewsFromCache(this);
-        if (cached != null && !cached.isEmpty()) {
-            adapter.updateData(cached);
+        if (adapter != null && !adapter.getAllData().isEmpty()) {
             layoutEmptyState.setVisibility(View.GONE);
             rvNoticias.setVisibility(View.VISIBLE);
-        } else {
-            rvNoticias.setVisibility(View.GONE);
-            layoutEmptyState.setVisibility(View.VISIBLE);
+            return;
         }
+        NewsCacheManager.loadNewsFromCache(this, cached -> {
+            if (isFinishing() || isDestroyed() || newsState.hasFreshFeed) return;
+            if (cached != null && !cached.isEmpty()) {
+                adapter.updateData(cached);
+                layoutEmptyState.setVisibility(View.GONE);
+                rvNoticias.setVisibility(View.VISIBLE);
+            } else {
+                rvNoticias.setVisibility(View.GONE);
+                layoutEmptyState.setVisibility(View.VISIBLE);
+            }
+        });
     }
+
 
     @Override
     public void onRecibeNoticiasRSS(ArrayList<NoticiaRSS> listaNoticias) {
         swipeRefreshLayout.setRefreshing(false);
 
         if (listaNoticias != null && !listaNoticias.isEmpty()) {
+            newsState.hasFreshFeed = true;
             adapter.updateData(listaNoticias);
             NewsCacheManager.saveNewsToCache(this, listaNoticias);
             layoutEmptyState.setVisibility(View.GONE);
             rvNoticias.setVisibility(View.VISIBLE);
 
             // Una actualización completa reinicia el recorrido del archivo.
-            nextArchivePage = 2;
-            hasMoreNews = true;
-            isLoadingMore = false;
-            consecutiveDuplicatePages = 0;
+            newsState.nextArchivePage = 2;
+            newsState.hasMoreNews = true;
+            newsState.isLoadingMore = false;
+            newsState.consecutiveDuplicatePages = 0;
 
             Log.d(TAG, "Noticias recibidas con éxito: " + listaNoticias.size());
         } else {
-            Toast.makeText(this, "No se pudieron obtener nuevas noticias del canal RSS", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, getString(R.string.main_text_22), Toast.LENGTH_SHORT).show();
             usarNoticiasOffline();
         }
     }
@@ -519,9 +537,9 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
 
     private void ejecutarDiagnosticoRedCompleto() {
         final AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("Diagnóstico de Conectividad")
-                .setMessage("Ejecutando comprobación avanzada de red y sondeo multi-capa...")
-                .setPositiveButton("Cerrar", null)
+                .setTitle(getString(R.string.main_text_23))
+                .setMessage(getString(R.string.main_text_24))
+                .setPositiveButton(getString(R.string.main_text_25), null)
                 .show();
 
         // The passive snapshot is the authoritative status shown to the user.
@@ -548,34 +566,34 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
             public void onResult(ConnectivityAndInternetAccess.InternetResult result) {
                 if (dialog != null && dialog.isShowing()) {
                     boolean reachable = result != null && result.isReachable();
-                    String reachedHost = result != null ? result.getReachedHost() : "Ninguno";
+                    String reachedHost = result != null ? result.getReachedHost() : getString(R.string.main_text_26);
                     long time = result != null ? result.getElapsedMilliseconds() : 0;
 
                     StringBuilder sb = new StringBuilder();
-                    sb.append("📡 ESTADO DE INTERFAZ DE RED:\n");
+                    sb.append(getString(R.string.main_text_27));
                     String generalStatus;
                     if (internetUsable) {
-                        generalStatus = "Conectado";
+                        generalStatus = getString(R.string.main_text_28);
                     } else if (isVpn && !hasPhysicalNetwork) {
-                        generalStatus = "VPN activa, sin red física";
+                        generalStatus = getString(R.string.main_text_29);
                     } else if (!isConnected && isConnectedOrConnecting) {
-                        generalStatus = "Conectando...";
+                        generalStatus = getString(R.string.main_text_15);
                     } else {
-                        generalStatus = "Desconectado";
+                        generalStatus = getString(R.string.main_text_30);
                     }
-                    sb.append("• Estado general: ").append(generalStatus).append("\n");
-                    sb.append("• Tipo de red: ").append(isWifi ? "Wi-Fi" : (isMobile ? "Móvil / Celular" : "Otra / Ninguna")).append("\n");
-                    sb.append("• Velocidad estimada: ").append(isFast ? "Rápida (High Speed)" : "Lenta / Desconocida").append("\n");
-                    sb.append("• Red VPN Activa: ").append(isVpn ? "SÍ" : "No").append("\n");
-                    sb.append("• Modo Avión: ").append(isAirplane ? "ACTIVADO" : "Desactivado").append("\n\n");
+                    sb.append(getString(R.string.main_text_31)).append(generalStatus).append("\n");
+                    sb.append(getString(R.string.main_text_32)).append(isWifi ? getString(R.string.main_text_33) : (isMobile ? getString(R.string.main_text_34) : getString(R.string.main_text_35))).append("\n");
+                    sb.append(getString(R.string.main_text_36)).append(isFast ? getString(R.string.main_text_37) : getString(R.string.main_text_38)).append("\n");
+                    sb.append(getString(R.string.main_text_39)).append(isVpn ? getString(R.string.main_text_40) : getString(R.string.main_text_41)).append("\n");
+                    sb.append(getString(R.string.main_text_42)).append(isAirplane ? getString(R.string.main_text_43) : getString(R.string.main_text_44)).append("\n\n");
 
-                    sb.append("🔍 PRUEBA ACTIVA MULTI-CAPA (GIST):\n");
-                    sb.append("• Internet Real: ").append(reachable ? "SÍ (Internet Verificado)" : "NO (Sin Internet)").append("\n");
-                    sb.append("• Servidor alcanzado: ").append(reachedHost).append("\n");
-                    sb.append("• Latencia de respuesta: ").append(time).append(" ms\n");
+                    sb.append(getString(R.string.main_text_45));
+                    sb.append(getString(R.string.main_text_46)).append(reachable ? getString(R.string.main_text_47) : getString(R.string.main_text_48)).append("\n");
+                    sb.append(getString(R.string.main_text_49)).append(reachedHost).append("\n");
+                    sb.append(getString(R.string.main_text_50)).append(time).append(getString(R.string.main_text_51));
 
                     if (currentNetworkState != null) {
-                        sb.append("\n📋 REGISTRO DE RED (NetworkState):\n");
+                        sb.append(getString(R.string.main_text_52));
                         sb.append(currentNetworkState.toString());
                     }
 
@@ -593,7 +611,7 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
         if (searchItem != null) {
             SearchView searchView = (SearchView) searchItem.getActionView();
             if (searchView != null) {
-                searchView.setQueryHint("Buscar noticia...");
+                searchView.setQueryHint(getString(R.string.main_text_53));
                 searchView.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH);
                 searchItem.setOnActionExpandListener(new MenuItem.OnActionExpandListener() {
                     @Override public boolean onMenuItemActionExpand(MenuItem item) {

@@ -11,18 +11,14 @@ import java.net.URLConnection;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import javax.net.ssl.SSLException;
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
 
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
-import org.w3c.dom.NodeList;
 
 import android.app.ProgressDialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.os.AsyncTask;
 import android.util.Log;
+import com.example.muyinteresante.R;
 
 import com.example.muyinteresante.util.ConnectivityAndInternetAccess;
 import com.example.muyinteresante.util.RemoteRequestPolicy;
@@ -30,7 +26,7 @@ import com.example.muyinteresante.util.RemoteRequestPolicy;
 /* Parsea un canal RSS y devuelve sus items en un ArrayList. */
 public class DescargaNoticiasRSS extends AsyncTask<String, Integer, ArrayList<NoticiaRSS>> {
     private static final String TAG = "DescargaNoticiasRSS";
-    private static final String MENSAJE_PD = "Descargando noticias...";
+    
 
     public enum FailureKind {
         OFFLINE_GUARD,
@@ -134,7 +130,7 @@ public class DescargaNoticiasRSS extends AsyncTask<String, Integer, ArrayList<No
 
         if (mostrarProgreso && contexto != null) {
             pd = new ProgressDialog(contexto);
-            pd.setMessage(MENSAJE_PD);
+            pd.setMessage(contexto.getString(R.string.downloading_news));
             pd.setCancelable(true);
             pd.setOnCancelListener(new DialogInterface.OnCancelListener() {
                 @Override
@@ -168,17 +164,7 @@ public class DescargaNoticiasRSS extends AsyncTask<String, Integer, ArrayList<No
         InputStream entrada = null;
         HttpURLConnection conexion = null;
         try {
-            DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
-            dbf.setIgnoringComments(true);
-            dbf.setCoalescing(true);
-            try {
-                dbf.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
-                dbf.setFeature("http://xml.org/sax/features/external-general-entities", false);
-                dbf.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
-            } catch (Exception e) {
-                android.util.Log.w("XML_SEC", "El parser no soporta las configuraciones de seguridad XXE", e);
-            }
-            DocumentBuilder db = dbf.newDocumentBuilder();
+            
 
             URL url = new URL(params[0]);
             URLConnection rawConnection = url.openConnection();
@@ -212,21 +198,18 @@ public class DescargaNoticiasRSS extends AsyncTask<String, Integer, ArrayList<No
             }
 
             entrada = conexion.getInputStream();
-            Document arbolXML = db.parse(entrada);
-            Element raiz = arbolXML.getDocumentElement();
-            raiz.normalize();
-
-            ArrayList<NoticiaRSS> noticias = new ArrayList<NoticiaRSS>();
-            NodeList listaItems = raiz.getElementsByTagName("item");
-            for (int i = 0; i < listaItems.getLength(); i++) {
+            final ArrayList<NoticiaRSS> noticias = new ArrayList<>();
+            RssPullParser.parse(entrada, item -> {
+                if (isCancelled()) return;
                 try {
-                    Element item = (Element) listaItems.item(i);
-                    noticias.add(new NoticiaRSS(item, params[1]));
+                    noticias.add(NoticiaRSS.fromRssFields(item.title, item.description,
+                            item.link, item.pubDate, item.image));
                     publishProgress(noticias.size());
-                } catch (Exception itemError) {
-                    Log.w(TAG, "Se omitió un item RSS inválido", itemError);
+                } catch (Exception exception) {
+                    Log.w(TAG, "Noticia RSS inválida", exception);
                 }
-            }
+            });
+            if (isCancelled()) return null;
             return noticias;
         } catch (Exception error) {
             boolean ambiguous = isAmbiguousConnectivityFailure(error);
@@ -336,7 +319,7 @@ public class DescargaNoticiasRSS extends AsyncTask<String, Integer, ArrayList<No
     protected void onProgressUpdate(Integer... values) {
         super.onProgressUpdate(values);
         if (pd != null && values != null && values.length > 0) {
-            pd.setMessage(MENSAJE_PD + " " + values[0]);
+            pd.setMessage(contexto.getString(R.string.downloading_news_count, values[0]));
         }
     }
 }
