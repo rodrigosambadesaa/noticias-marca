@@ -280,7 +280,7 @@ public class DescargaNoticiasRSS extends AsyncTask<String, Integer, ArrayList<No
         }
 
         if (failure != null && failure.getKind() == FailureKind.AMBIGUOUS_CONNECTIVITY) {
-            ConnectivityAndInternetAccess.checkInternetAsyncDefault(
+            ConnectivityAndInternetAccess.checkHttpOnlyAsyncDefault(
                     contexto,
                     new ConnectivityAndInternetAccess.InternetCallback() {
                         @Override
